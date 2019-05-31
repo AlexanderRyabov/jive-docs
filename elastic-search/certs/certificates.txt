@@ -1,0 +1,71 @@
+Where certificates are located in a project:
+  /home/alex/aurea/jive-search-shared/devspaces/docker-es-kibana/certs/
+        keystore.jks
+        kirk.jks
+        truststore.jks
+
+The Root CA is located in truststore.jks.
+
+How to list certificates:
+  keytool -list -v -keystore  /home/alex/aurea/jive-search-shared/devspaces/docker-es-kibana/certs/truststore.jks
+
+Export the root CA certificate from the keystore:
+  keytool -export -alias root-ca-chain -file es-ca.crt -keystore /home/alex/aurea/jive-search-shared/devspaces/docker-es-kibana/certs/truststore.jks
+
+Converting binary .crt to .pem:
+   openssl x509 -in es-ca.crt -out es-ca.pem -inform DER -outform PEM
+
+[Ubunty]: Installing root CA as a system trusted CA
+    sudo mkdir /usr/local/share/ca-certificates/es-local/
+    sudo cp es-ca.pem /usr/local/share/ca-certificates/es-local/es-ca.crt
+
+    sudo update-ca-certificates --fresh
+       # These commands doesn't work for me
+       #    sudo update-ca-certificates
+       #    sudo dpkg-reconfigure ca-certificates
+
+    # Check that certificate is added
+        ls -la /etc/ssl/certs/ | grep /es-local
+            ...
+            lrwxrwxrwx 1 root root     51 May 31 06:11 es-ca.pem -> /usr/local/share/ca-certificates/es-local/es-ca.crt
+            ...
+
+Getting the certificates of local elastic search:
+    Local elastic search has 2 certificates. This is how we can get them:
+        openssl s_client -showcerts -connect localhost:9200 </dev/null 2>/dev/null | sed -n '/^-----BEGIN CERT/,/^-----END CERT/p' > es-certificates.pem
+    Split file es-certificates.pem into two files, e.g. es-0.pem and es-1.pem, each of them containing only one certificate.
+    E.g. do it in any text editor.
+
+        Example of similar command, but handling only one certificate:
+            openssl s_client -showcerts -connect localhost:9200 </dev/null 2>/dev/null|openssl x509 -outform PEM
+
+
+[Ubunty]: Now we can install these local certificates into the system:
+    sudo cp es-0.pem /usr/local/share/ca-certificates/es-local/es-0.crt
+    sudo cp es-1.pem /usr/local/share/ca-certificates/es-local/es-1.crt
+
+After that we should be able to verify certificates, to confirm that everything is Ok, e.g.:
+    openssl verify es-1.pem
+    openssl verify es-0.pem
+    openssl verify es-certificates.pem
+
+    openssl verify -CApath /etc/ssl/certs/  es-0.pem
+
+How to check details of the certificate:
+    openssl x509 -inform PEM -in es-0.pem -text
+
+
+
+And finally, calling elastic search API:
+
+    curl -u admin:admin https://localhost:9200/_cat/health?pretty
+
+
+    curl -u admin:admin -Xget 'https://localhost:9200/_count?pretty' -d '
+    {
+        "query": {
+            "match_all": {}
+        }
+    }
+
+
