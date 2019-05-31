@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-curl -u admin:admin -XGET https://localhost:9200/new_index
+curl -u admin:admin -XGET https://localhost:9200/new_index?pretty
